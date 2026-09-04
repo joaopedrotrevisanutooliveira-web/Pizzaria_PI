@@ -3,7 +3,7 @@ package PI.Pizzaria.service;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
-
+import PI.Pizzaria.exception.PizzaNotFoundException;
 import PI.Pizzaria.model.Pizza;
 import PI.Pizzaria.repository.PizzaRepository;
 
@@ -16,8 +16,14 @@ public class PizzaService {
         this.pizzaRepository = pizzaRepository;
     }
 
-    public List<Pizza> listarPizzas(){
+    public List <Pizza> listarPizzas(){
         return pizzaRepository.findAll();
+    }
+
+    public Pizza buscarPorId(String id){
+        return pizzaRepository.findById(id)
+            .orElseThrow(()-> 
+                 new PizzaNotFoundException("Pizza não encontrada"));
     }
 
 }
