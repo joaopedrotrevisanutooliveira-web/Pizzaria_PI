@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrar — City Pizzas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <div class="login">
+    <div class="login__marca">
+      <img src="assets/logo-city-pizzas.png" alt="City Pizzas" style="height:48px; width:auto;" />
+      <span>City Pizzas</span>
+    </div>
+
+    <div class="login__cartao">
+      <div class="login__avatar">
+        <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+          <rect width="80" height="80" fill="#E9E9E9"/>
+          <circle cx="40" cy="30" r="14" fill="#B9B9B9"/>
+          <path d="M12 78c0-16 12-26 28-26s28 10 28 26" fill="#B9B9B9"/>
+        </svg>
+      </div>
+
+      <div id="mensagemErro" class="mensagem mensagem--erro" role="alert"></div>
+
+      <form id="formLogin" novalidate>
+        <div class="campo campo-com-icone">
+          <div style="position:relative;">
+            <input type="text" id="usuario" name="usuario" placeholder="Usuário" autocomplete="username" required />
+          </div>
+          <span class="campo__erro" id="erroUsuario">Informe sua matrícula/usuário.</span>
+        </div>
+
+        <div class="campo campo-com-icone">
+          <div style="position:relative;">
+            <input type="password" id="senha" name="senha" placeholder="Senha" autocomplete="current-password" required />
+          </div>
+          <span class="campo__erro" id="erroSenha">Informe sua senha.</span>
+        </div>
+
+        <a href="#" class="login__esqueci" id="linkEsqueciSenha">Esqueci a senha.</a>
+
+        <button type="submit" class="botao botao--preto botao--largura-total" id="botaoEntrar">
+          Entrar
+        </button>
+      </form>
+
+      <p class="login__rodape">
+        Não tenho cadastro. <a href="cadastros.html">Cadastrar</a>
+      </p>
+
+  <script src="js/api.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>
