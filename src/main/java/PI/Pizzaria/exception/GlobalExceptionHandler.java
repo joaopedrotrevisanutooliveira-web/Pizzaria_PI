@@ -16,4 +16,14 @@ public class GlobalExceptionHandler {
             .status(HttpStatus.NOT_FOUND)
             .body(exception.getMessage());
         }
+        
+ @ExceptionHandler(ColaboradorNotFoundException.class)
+    public ResponseEntity<String> tratarColaboradorNãoEncontrado(
+            ColaboradorNotFoundException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(exception.getMessage());
+    }
+
 }
