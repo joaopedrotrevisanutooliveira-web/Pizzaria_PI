@@ -25,7 +25,7 @@ public class AuthServicy {
     }
 
     public boolean isAdmnistrador(Colaborador colaborador) {
-        return colaborador.getPerfil() == Colaborador.Perfil.admnistrador;
+        return colaborador.getPerfil() == Colaborador.Perfil.administrador;
     }
 
     public String gerarCodigoRecuperacao(String email) {
