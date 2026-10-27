@@ -2,20 +2,27 @@ package PI.Pizzaria.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.index.Indexed;
 
 @Document(collection = "colaboradores")
 public class Colaborador {
     @Id
     private String id;
     private String nome;
+
+    @Indexed(unique = true)
     private String matricula;
+
     private String senha;
     private Perfil perfil;
+
+    @Indexed(unique = true)
     private String email;
+    
     private String codigoRecuperacao;
 
     public enum Perfil {
-        admnistrador,
+        administrador,
         funcionario
     }
 
