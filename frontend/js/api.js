@@ -1,19 +1,3 @@
-/**
- * api.js — ponto único de integração com a API REST (Spring Boot).
- *
- * Contrato Sprint 2: sessão no back-end e autorização por token.
- *   POST /auth/login             { matricula, senha }  -> { matricula, perfil }   (401 + texto se errar)
- *   POST /auth/recuperar-senha   { email }             -> texto com o código
- *   POST /auth/redefinir-senha   { email, codigo, novaSenha } -> texto
- *   GET  /pizzas                 -> [{ id, nome, sabor, tamanho, preco }]
- *   POST /colaboradores          { nome, matricula, email, senha, perfil }
- *
- *   GET  /https://github.com/joaopedrotrevisanutooliveira-web/Pizzaria_PI/pull/18/conflict?name=frontend%252Fjs%252Fapi.js&ancestor_oid=6b44d63bd7c1360ef35129897adfa47583baadfd&base_oid=c73ada9e9d420f439ab1311ea6183686897c2873&head_oid=b5e10334d7ebcd3c908897d3566711bad67f8984clientes/busca?termo=... -> [{ id, nome, telefone, endereco, ... }]
- *   POST /clientes                    -> cliente cadastrado
- *   GET  /colaboradores               -> lista (somente administrador)
- *   POST /auth/admin/redefinir-senha  -> redefinição pelo administrador
- */
-
 const API_BASE_URL = 'http://localhost:8080';
 
 async function requisitar(caminho, opcoes = {}) {

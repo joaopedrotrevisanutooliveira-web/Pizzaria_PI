@@ -4,7 +4,10 @@ let proximoUid = 1;
 let catalogoProdutos = [];
 let enviandoPedido = false;
 
-const VALOR_ACRESCIMO = 5.0;
+const VALOR_ACRESCIMO = 5.0; // R$ 5,00 por ingrediente extra
+const TAXA_ENTREGA_PADRAO = 5.0; // "taxa padrão da pizzaria" — confirmar o valor com o cliente
+const ENVIAR_ENTREGA_E_PAGAMENTO_AO_SERVIDOR = false;
+const ROTULOS_PAGAMENTO = { DINHEIRO: 'Dinheiro', PIX: 'Pix', CREDITO: 'Cartão de crédito', DEBITO: 'Cartão de débito' };
 const QUANTIDADE_MIN = 1;
 const QUANTIDADE_MAX = 100;
 const SUGESTOES_OBSERVACAO = ['SEM MILHO', 'SEM CEBOLA', 'COM CEBOLA', 'SEM TOMATE', 'SEM AZEITONA', 'BORDA RECHEADA'];
@@ -30,10 +33,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   restaurarClienteRecemCadastrado();
   await configurarBuscaProduto();
   configurarModalidade();
+  configurarCep();
+  if (!ENVIAR_ENTREGA_E_PAGAMENTO_AO_SERVIDOR) {
+    const aviso = document.getElementById('avisoSprint4');
+    aviso.textContent = 'Entrega, endereço, pagamento e observações gerais ainda não são gravados no servidor; valem para o total e saem na comanda impressa.';
+    aviso.style.display = 'block';
+  }
 
   document.getElementById('botaoNovoPedido').addEventListener('click', reiniciarPedido);
   document.getElementById('botaoCancelar').addEventListener('click', cancelarPedidoAtual);
   document.getElementById('botaoImprimir').addEventListener('click', finalizarEImprimir);
+  document.getElementById('selectPagamento').addEventListener('change', () => {
+    document.getElementById('selectPagamento').classList.remove('campo-invalido');
+  });
 
   renderizarItens();
 });
@@ -83,15 +95,14 @@ function configurarBuscaCliente() {
       return;
     }
 
-    resultados.replaceChildren();
     clientes.forEach((cliente) => {
       const botao = document.createElement('button');
       botao.type = 'button';
       botao.textContent = `${cliente.nome} — ${formatarTelefone(cliente.telefone)}`;
-      resultados.appendChild(botao);
       botao.addEventListener('click', () => {
         clienteSelecionado = cliente;
         document.getElementById('nomeCliente').textContent = clienteSelecionado.nome;
+        preencherDadosDoCliente(clienteSelecionado);
         resultados.style.display = 'none';
         painel.style.display = 'none';
         campo.value = '';
@@ -103,6 +114,7 @@ function configurarBuscaCliente() {
   }
 }
 
+/** Depois de cadastrar um cliente (cadastros.html?origem=pedidos), ele volta já selecionado. */
 function restaurarClienteRecemCadastrado() {
   const bruto = sessionStorage.getItem('cityPizzas_clienteSelecionado');
   if (!bruto) return;
@@ -110,6 +122,7 @@ function restaurarClienteRecemCadastrado() {
   try {
     clienteSelecionado = JSON.parse(bruto);
     document.getElementById('nomeCliente').textContent = clienteSelecionado.nome;
+    preencherDadosDoCliente(clienteSelecionado);
   } catch (_) {
     clienteSelecionado = null;
   }
@@ -134,6 +147,7 @@ function nomeExibicaoProduto(produto) {
   return produto.nome;
 }
 
+/** Texto sem acento e minúsculo, para a busca não depender de maiúsculas/acentos. */
 function normalizarTexto(texto) {
   return String(texto || '')
     .normalize('NFD')
@@ -265,6 +279,7 @@ function nomeItemCompleto(item) {
   return nomeExibicaoProduto(item.produto);
 }
 
+/** Pequeno construtor de elementos (usa textContent, então nomes vindos do banco não injetam HTML). */
 function el(tag, props = {}, ...filhos) {
   const no = document.createElement(tag);
   Object.entries(props).forEach(([chave, valor]) => {
@@ -294,6 +309,8 @@ function renderizarItens() {
 
 function criarLinhaItem(item) {
   const pizza = ehPizza(item.produto);
+
+  /* --- Coluna de informações: nome, inteira/meio a meio, observação, acréscimos --- */
   const info = el('div', { className: 'item-pedido__info' }, el('h3', { 'data-nome-item': item.uid, text: nomeItemCompleto(item) }));
 
   if (pizza) {
@@ -304,10 +321,12 @@ function criarLinhaItem(item) {
   info.appendChild(criarCampoObservacao(item));
   if (pizza) info.appendChild(criarAcrescimos(item));
 
+  /* --- Coluna de preparo + quantidade --- */
   const preparo = el('div', { className: 'item-pedido__preparo' });
   if (pizza) preparo.appendChild(criarControlePreparo(item));
   preparo.appendChild(criarControleQuantidade(item));
 
+  /* --- Coluna de preços --- */
   const precos = el(
     'div',
     { className: 'item-pedido__precos' },
@@ -330,6 +349,7 @@ function textoDetalhePreco(item) {
   return partes.join(' · ');
 }
 
+/** Atualiza textos de preço/nome sem recriar os campos (não perde o foco de quem está digitando). */
 function atualizarLinha(item) {
   const nome = document.querySelector(`[data-nome-item="${item.uid}"]`);
   const subtotal = document.querySelector(`[data-subtotal-item="${item.uid}"]`);
@@ -433,6 +453,7 @@ function criarControleQuantidade(item) {
 
   campo.addEventListener('change', () => aplicar(campo.value));
   campo.addEventListener('input', () => {
+    // Atualiza o preço em tempo real quando o valor digitado já é válido.
     const numero = Number(campo.value);
     if (Number.isInteger(numero) && numero >= QUANTIDADE_MIN && numero <= QUANTIDADE_MAX) {
       item.quantidade = numero;
@@ -528,30 +549,133 @@ function criarAcrescimos(item) {
   );
 }
 
-/* ---------- Modalidade (apenas visual até a Sprint 4) ---------- */
+/* ---------- Entrega / retirada, CEP e pagamento ---------- */
+
+const CAMPOS_ENDERECO = ['endCep', 'endRua', 'endNumero', 'endBairro', 'endCidade', 'endComplemento'];
+
+function modalidadeAtual() {
+  return document.getElementById('selectModalidade').value;
+}
 
 function configurarModalidade() {
   const select = document.getElementById('selectModalidade');
-  const camposEntrega = document.getElementById('camposEntrega');
-  const camposRetirada = document.getElementById('camposRetirada');
-
   select.addEventListener('change', () => {
     const ehEntrega = select.value === 'ENTREGA';
-    camposEntrega.style.display = ehEntrega ? 'grid' : 'none';
-    camposRetirada.style.display = ehEntrega ? 'none' : 'grid';
+    document.getElementById('camposEntrega').style.display = ehEntrega ? 'grid' : 'none';
+    document.getElementById('camposRetirada').style.display = ehEntrega ? 'none' : 'grid';
+    document.getElementById('linhaTaxa').style.display = ehEntrega ? 'flex' : 'none';
+    esconderMensagens();
+    atualizarTotal();
   });
+
+  // Remove a marca de erro assim que o campo volta a ser preenchido.
+  [...CAMPOS_ENDERECO, 'retiradaNome', 'retiradaTelefone'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', (e) => e.target.classList.remove('campo-invalido'));
+  });
+}
+
+function formatarCep(valor) {
+  const d = somenteDigitos(valor).slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
+
+/** Máscara 00000-000 e preenchimento automático (ViaCEP) quando o CEP fica completo. */
+function configurarCep() {
+  const campo = document.getElementById('endCep');
+  const dica = document.getElementById('dicaCep');
+  let ultimoConsultado = '';
+
+  async function consultar() {
+    const cep = somenteDigitos(campo.value);
+    if (cep.length !== 8 || cep === ultimoConsultado) return;
+    ultimoConsultado = cep;
+    dica.textContent = 'Buscando endereço...';
+    const dados = await consultarCep(cep);
+    if (somenteDigitos(campo.value) !== cep) return; // o CEP mudou durante a consulta
+    if (!dados) {
+      dica.textContent = 'CEP não encontrado ou sem conexão. Preencha o endereço manualmente.';
+      return;
+    }
+    dica.textContent = '';
+    if (dados.rua) document.getElementById('endRua').value = dados.rua;
+    if (dados.bairro) document.getElementById('endBairro').value = dados.bairro;
+    if (dados.cidade) document.getElementById('endCidade').value = dados.cidade;
+    ['endRua', 'endBairro', 'endCidade'].forEach((id) => document.getElementById(id).classList.remove('campo-invalido'));
+    document.getElementById(dados.rua ? 'endNumero' : 'endRua').focus();
+  }
+
+  campo.addEventListener('input', () => {
+    campo.value = formatarCep(campo.value);
+    if (somenteDigitos(campo.value).length < 8) {
+      ultimoConsultado = '';
+      dica.textContent = '';
+    } else {
+      consultar();
+    }
+  });
+  campo.addEventListener('blur', consultar);
+}
+
+/** Ao escolher o cliente, já traz endereço (entrega) e nome/telefone (retirada). */
+function preencherDadosDoCliente(cliente) {
+  const e = cliente?.endereco;
+  if (e && typeof e === 'object') {
+    document.getElementById('endCep').value = formatarCep(e.cep);
+    document.getElementById('endRua').value = e.rua || '';
+    document.getElementById('endNumero').value = e.numero || '';
+    document.getElementById('endBairro').value = e.bairro || '';
+    document.getElementById('endCidade').value = e.cidade || '';
+    document.getElementById('endComplemento').value = e.complemento || '';
+    document.getElementById('dicaCep').textContent = '';
+  }
+  document.getElementById('retiradaNome').value = cliente?.nome || '';
+  document.getElementById('retiradaTelefone').value = formatarTelefone(cliente?.telefone);
+}
+
+function limparCamposEntregaERetirada() {
+  [...CAMPOS_ENDERECO, 'retiradaNome', 'retiradaTelefone'].forEach((id) => {
+    const campo = document.getElementById(id);
+    campo.value = '';
+    campo.classList.remove('campo-invalido');
+  });
+  document.getElementById('dicaCep').textContent = '';
+}
+
+function lerEndereco() {
+  const valor = (id) => document.getElementById(id).value.trim();
+  return {
+    cep: somenteDigitos(valor('endCep')),
+    rua: valor('endRua'),
+    numero: valor('endNumero'),
+    bairro: valor('endBairro'),
+    cidade: valor('endCidade'),
+    complemento: valor('endComplemento'),
+  };
 }
 
 /* ---------- Total ---------- */
 
-function calcularTotal() {
+/** Soma dos itens (sem taxa). */
+function calcularSubtotal() {
   return itensPedido.reduce((soma, item) => soma + subtotalItem(item), 0);
 }
 
+/** A taxa padrão só se aplica a pedidos de entrega. */
+function calcularTaxaEntrega() {
+  return modalidadeAtual() === 'ENTREGA' ? TAXA_ENTREGA_PADRAO : 0;
+}
+
+function calcularTotal() {
+  return calcularSubtotal() + calcularTaxaEntrega();
+}
+
 function atualizarTotal() {
-  const total = calcularTotal();
-  document.getElementById('valorTotal').textContent = formatarMoeda(total);
-  return total;
+  const subtotal = calcularSubtotal();
+  const taxa = calcularTaxaEntrega();
+  document.getElementById('valorSubtotal').textContent = formatarMoeda(subtotal);
+  document.getElementById('valorTaxaEntrega').textContent = formatarMoeda(taxa);
+  document.getElementById('valorTotal').textContent = formatarMoeda(subtotal + taxa);
+  return subtotal + taxa;
 }
 
 /* ---------- Ações: novo / cancelar / imprimir ---------- */
@@ -563,8 +687,11 @@ function reiniciarPedido() {
   atualizarNumeroPedido();
   document.getElementById('observacaoGeral').value = '';
   document.getElementById('selectModalidade').value = 'ENTREGA';
+  document.getElementById('selectPagamento').value = 'DINHEIRO';
   document.getElementById('camposEntrega').style.display = 'grid';
   document.getElementById('camposRetirada').style.display = 'none';
+  document.getElementById('linhaTaxa').style.display = 'flex';
+  limparCamposEntregaERetirada();
   esconderMensagens();
   renderizarItens();
 }
@@ -576,6 +703,7 @@ function cancelarPedidoAtual() {
   }
 }
 
+/** Valida o pedido e devolve o texto do primeiro problema (ou null se estiver tudo certo). */
 function validarPedido() {
   if (!clienteSelecionado) return 'Selecione um cliente antes de finalizar o pedido.';
   if (itensPedido.length === 0) return 'Adicione pelo menos um item ao pedido.';
@@ -590,11 +718,34 @@ function validarPedido() {
       return `Escolha o 2º sabor da pizza meio a meio "${nome}".`;
     }
   }
+
+  if (modalidadeAtual() === 'ENTREGA') {
+    const e = lerEndereco();
+    const obrigatorios = [
+      ['endCep', e.cep.length === 8, 'Informe o CEP completo (8 dígitos) para a entrega.'],
+      ['endRua', e.rua, 'Informe o endereço (rua) da entrega.'],
+      ['endNumero', e.numero, 'Informe o número do endereço da entrega.'],
+      ['endBairro', e.bairro, 'Informe o bairro da entrega.'],
+      ['endCidade', e.cidade, 'Informe a cidade da entrega.'],
+    ];
+    const faltando = obrigatorios.filter(([, ok]) => !ok);
+    if (faltando.length) {
+      faltando.forEach(([id]) => document.getElementById(id).classList.add('campo-invalido'));
+      document.getElementById(faltando[0][0]).focus();
+      return faltando[0][2];
+    }
+  }
+
+  if (!ROTULOS_PAGAMENTO[document.getElementById('selectPagamento').value]) {
+    document.getElementById('selectPagamento').classList.add('campo-invalido');
+    return 'Escolha a forma de pagamento.';
+  }
   return null;
 }
 
+/** Monta exatamente o JSON aceito pelo back-end nesta sprint. */
 function montarPayloadPedido() {
-  return {
+  const payload = {
     clienteId: clienteSelecionado.id,
     itens: itensPedido.map((item) => {
       const pizza = ehPizza(item.produto);
@@ -611,6 +762,15 @@ function montarPayloadPedido() {
       return dto;
     }),
   };
+
+  if (ENVIAR_ENTREGA_E_PAGAMENTO_AO_SERVIDOR) {
+    // Nomes conforme o memorial (modalidade, formaPagamento, endereço de entrega).
+    // O total e a taxa NÃO são enviados: o servidor deve calculá-los.
+    payload.modalidade = modalidadeAtual();
+    payload.formaPagamento = document.getElementById('selectPagamento').value;
+    if (modalidadeAtual() === 'ENTREGA') payload.endereco = lerEndereco();
+  }
+  return payload;
 }
 
 async function finalizarEImprimir() {
@@ -640,11 +800,14 @@ async function finalizarEImprimir() {
   }
 
   // Guarda o que foi enviado antes de reiniciar a tela.
-  const modalidade = document.getElementById('selectModalidade').value;
+  const modalidade = modalidadeAtual();
+  const subtotal = calcularSubtotal();
+  const taxaEntrega = calcularTaxaEntrega();
   const registroLocal = {
     id: pedidoSalvo?.id,
     numero: document.getElementById('numeroPedido').textContent,
     cliente: clienteSelecionado.nome,
+    clienteTelefone: clienteSelecionado.telefone,
     itens: itensPedido.map((item) => ({
       nome: nomeItemCompleto(item),
       quantidade: item.quantidade,
@@ -654,14 +817,7 @@ async function finalizarEImprimir() {
       preco: valorUnitarioItem(item),
     })),
     modalidade,
-    endereco:
-      modalidade === 'ENTREGA'
-        ? {
-            rua: document.getElementById('endRua').value.trim(),
-            numero: document.getElementById('endNumero').value.trim(),
-            bairro: document.getElementById('endBairro').value.trim(),
-          }
-        : undefined,
+    endereco: modalidade === 'ENTREGA' ? lerEndereco() : undefined,
     contatoRetirada:
       modalidade === 'RETIRADA'
         ? {
@@ -670,7 +826,10 @@ async function finalizarEImprimir() {
           }
         : undefined,
     formaPagamento: document.getElementById('selectPagamento').value,
-    total: calcularTotal(),
+    observacaoGeral: document.getElementById('observacaoGeral').value.trim(),
+    subtotal,
+    taxaEntrega,
+    total: subtotal + taxaEntrega,
     atendente: localStorageObterUsuario()?.nome || nomeDoUsuarioLogado(),
     criadoEm: pedidoSalvo?.criadoEm || new Date().toISOString(),
   };
@@ -678,48 +837,65 @@ async function finalizarEImprimir() {
   const subtotalServidor = Number(pedidoSalvo?.subtotalItens);
   confirmarNumeroPedido();
   salvarPedidoNoHistoricoLocal(registroLocal);
-  try {
-    await criarPedido(dadosPedido);
-    mostrarSucesso('Pedido registrado com sucesso.');
-  } catch (erro) {
-    // Impede emitir um pedido que o servidor não registrou.
-    mostrarErro(`Pedido não registrado (${erro.message}). A impressão foi cancelada.`);
-    return;
-  }
 
-  salvarPedidoNoHistoricoLocal({
-    numero: document.getElementById('numeroPedido').textContent,
-    cliente: clienteSelecionado.nome,
-    itens: itensPedido.map((item) => ({
-      nome: nomeExibicaoProduto(item.produto),
-      preparo: item.tipoPreparo === 'ASSADA' ? 'Assada' : 'Pré-assada',
-      observacao: item.observacao,
-      acrescimos: item.acrescimos,
-      preco: item.produto.preco,
-    })),
-    modalidade,
-    endereco: dadosPedido.endereco,
-    contatoRetirada: dadosPedido.contatoRetirada,
-    formaPagamento: dadosPedido.formaPagamento,
-    total: calcularTotal(),
-    atendente: localStorageObterUsuario()?.nome || 'Usuário',
-    criadoEm: new Date().toISOString(),
-  });
-
+  montarComanda(registroLocal);
   window.print();
 
+  // Pedido já registrado: limpa a tela para evitar registrar o mesmo pedido duas vezes.
   reiniciarPedido();
   enviandoPedido = false;
   botao.disabled = false;
 
-  let texto = `${registroLocal.numero.replace(/^pedido/, 'Pedido')} registrado com sucesso.`;
-  if (Number.isFinite(subtotalServidor)) {
-    texto += ` Subtotal confirmado pelo servidor: ${formatarMoeda(subtotalServidor)}.`;
-    if (Math.abs(subtotalServidor - registroLocal.total) > 0.005) {
-      texto += ` Difere do total impresso (${formatarMoeda(registroLocal.total)}): o servidor ainda não soma os acréscimos de R$ 5,00 (regra do Ronie).`;
-    }
+  let texto = `${registroLocal.numero.replace(/^pedido/, 'Pedido')} registrado com sucesso. Total: ${formatarMoeda(registroLocal.total)}.`;
+  if (Number.isFinite(subtotalServidor) && Math.abs(subtotalServidor - registroLocal.subtotal) > 0.005) {
+    texto += ` Atenção: o servidor registrou o subtotal dos itens em ${formatarMoeda(subtotalServidor)}, diferente dos ${formatarMoeda(registroLocal.subtotal)} impressos (acréscimos de R$ 5,00 ainda não somados pelo servidor — regra do Ronie).`;
   }
   mostrarSucesso(texto);
+}
+
+/* ---------- Comanda (conteúdo impresso) ---------- */
+
+function montarComanda(r) {
+  const linha = (rotulo, valor) => el('div', { className: 'comanda__linha' }, el('span', { text: rotulo }), el('span', { text: valor }));
+  const raiz = document.getElementById('comanda');
+
+  const itens = r.itens.map((item) => {
+    const detalhes = [item.preparo, item.observacao && `obs: ${item.observacao}`, item.acrescimos.length && `acréscimo: ${item.acrescimos.join(', ')}`].filter(Boolean);
+    return el(
+      'li',
+      { className: 'comanda__item' },
+      el('div', { className: 'comanda__linha' }, el('strong', { text: `${item.quantidade}× ${item.nome}` }), el('span', { text: formatarMoeda(item.preco * item.quantidade) })),
+      detalhes.length ? el('div', { className: 'comanda__detalhe', text: detalhes.join(' · ') }) : null
+    );
+  });
+
+  const destino = [];
+  if (r.modalidade === 'ENTREGA') {
+    const e = r.endereco;
+    destino.push(el('div', { className: 'comanda__bloco' }, el('strong', { text: 'ENTREGA' }),
+      el('div', { text: `${e.rua}, ${e.numero}${e.complemento ? ` — ${e.complemento}` : ''}` }),
+      el('div', { text: `${e.bairro} — ${e.cidade}` }),
+      el('div', { text: `CEP ${formatarCep(e.cep)}` })));
+  } else {
+    const c = r.contatoRetirada;
+    destino.push(el('div', { className: 'comanda__bloco' }, el('strong', { text: 'RETIRADA' }),
+      el('div', { text: [c.nome, c.telefone].filter(Boolean).join(' — ') || r.cliente })));
+  }
+
+  raiz.replaceChildren(
+    el('h1', { className: 'comanda__titulo', text: 'City Pizzas' }),
+    el('div', { className: 'comanda__subtitulo', text: r.numero.toUpperCase() }),
+    el('div', { className: 'comanda__meta', text: `${new Date(r.criadoEm).toLocaleString('pt-BR')} · Atendente: ${r.atendente}` }),
+    el('div', { className: 'comanda__bloco' }, el('strong', { text: 'Cliente: ' }), `${r.cliente}${r.clienteTelefone ? ` — ${formatarTelefone(r.clienteTelefone)}` : ''}`),
+    ...destino,
+    el('ul', { className: 'comanda__itens' }, itens),
+    el('div', { className: 'comanda__totais' },
+      linha('Itens', formatarMoeda(r.subtotal)),
+      r.modalidade === 'ENTREGA' ? linha('Taxa de entrega', formatarMoeda(r.taxaEntrega)) : null,
+      el('div', { className: 'comanda__linha comanda__linha--total' }, el('strong', { text: 'TOTAL' }), el('strong', { text: formatarMoeda(r.total) }))),
+    el('div', { className: 'comanda__bloco' }, el('strong', { text: 'Pagamento: ' }), ROTULOS_PAGAMENTO[r.formaPagamento] || r.formaPagamento),
+    r.observacaoGeral ? el('div', { className: 'comanda__bloco' }, el('strong', { text: 'Observações: ' }), r.observacaoGeral) : null
+  );
 }
 
 function sessaoExpirada() {
@@ -732,13 +908,14 @@ function salvarPedidoNoHistoricoLocal(pedido) {
   let historico = [];
   try {
     historico = JSON.parse(localStorage.getItem('cityPizzas_historicoPedidos') || '[]');
-  } catch (_) { }
+  } catch (_) { /* histórico corrompido: recomeça */ }
   historico.unshift(pedido);
   localStorage.setItem('cityPizzas_historicoPedidos', JSON.stringify(historico.slice(0, 50)));
 }
 
 /* ---------- Utilidades ---------- */
 
+/** O número só "gasta" quando o pedido é de fato registrado (recarregar a página não pula números). */
 function numeroAtualPedido() {
   const atual = Number(localStorage.getItem('cityPizzas_ultimoPedido') || '0') + 1;
   return String(atual).padStart(3, '0');

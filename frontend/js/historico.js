@@ -16,7 +16,7 @@ function renderizarPedido(pedido) {
   const modalidadeTexto = pedido.modalidade === 'ENTREGA' ? 'Entrega' : 'Retirada';
   const enderecoOuContato =
     pedido.modalidade === 'ENTREGA'
-      ? `${pedido.endereco?.rua || ''}, ${pedido.endereco?.numero || ''} — ${pedido.endereco?.bairro || ''}`
+      ? [`${pedido.endereco?.rua || ''}, ${pedido.endereco?.numero || ''}`, pedido.endereco?.bairro, pedido.endereco?.cidade].filter(Boolean).join(' — ')
       : `${pedido.contatoRetirada?.nome || ''} — ${pedido.contatoRetirada?.telefone || ''}`;
 
   const itensHtml = pedido.itens
@@ -44,13 +44,14 @@ function renderizarPedido(pedido) {
         <div><strong>Atendente:</strong> ${pedido.atendente}</div>
       </div>
       <ul style="margin:0 0 10px; padding-left:18px; font-size:0.88rem;">${itensHtml}</ul>
+      ${pedido.taxaEntrega ? `<div style="text-align:right; font-size:0.85rem;">Taxa de entrega: ${formatarMoeda(pedido.taxaEntrega)}</div>` : ''}
       <div style="text-align:right; font-weight:700;">Total: ${formatarMoeda(pedido.total)}</div>
     </div>
   `;
 }
 
 function traduzirPagamento(codigo) {
-  const mapa = { DINHEIRO: 'Dinheiro', PIX: 'Pix', CREDITO: 'Crédito', DEBITO: 'Débito' };
+  const mapa = { DINHEIRO: 'Dinheiro', PIX: 'Pix', CREDITO: 'Cartão de crédito', DEBITO: 'Cartão de débito' };
   return mapa[codigo] || codigo;
 }
 
