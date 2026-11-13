@@ -1,8 +1,3 @@
-/**
- * cadastros.js — busca/cadastro de clientes e administração de colaboradores.
- * Sprint 2 (PB01 a PB06). Mantém a estrutura de abas do protótipo.
- */
-
 document.addEventListener('DOMContentLoaded', () => {
   if (!usuarioEstaLogado()) {
     window.location.href = 'index.html';

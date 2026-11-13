@@ -711,6 +711,7 @@ button {
 #mensagemColaborador { margin-bottom:12px; color:var(--preto); }
 @media (max-width: 480px) { .cadastro__busca { flex-direction:column; } .cadastro__resultado { flex-direction:column; align-items:stretch; } }
 
+/* ---------- Sprint 3 (Cauã) — controles do item de pedido ---------- */
 .pedido__aviso { font-size: 0.8rem; color: var(--cinza-texto); margin: 0 0 14px; }
 
 .item-pedido__linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.82rem; margin-bottom: 6px; }
@@ -751,7 +752,52 @@ button {
   .item-pedido__preparo, .item-pedido__bloco { align-items: flex-start; }
 }
 
+/* ---------- Sprint 4 (Cauã) — entrega, pagamento, total e comanda ---------- */
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.secao-titulo { font-size: 0.95rem; margin: 0 0 8px; }
+.campo__dica { display:block; min-height:1em; font-size:0.74rem; color: var(--cinza-texto); margin-top:3px; }
+
+.entrega__campos {
+  display: grid;
+  grid-template-columns: 1fr 2.2fr 0.8fr 1.4fr;
+  gap: 12px;
+  align-items: start;
+}
+.entrega__campos--retirada { grid-template-columns: 1fr 1fr; max-width: 560px; }
+.entrega__campos input {
+  padding: 9px 12px; border: 1px solid var(--preto); border-radius: 6px;
+  font-family: var(--fonte); background-color: var(--fundo-campo); width: 100%;
+}
+
+.pedido__rodape { justify-content: space-between; align-items: flex-start; }
+.pedido__pagamento { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pedido__resumo { margin: 0; min-width: 260px; display: flex; flex-direction: column; gap: 4px; }
+.pedido__resumo-linha { display: flex; justify-content: space-between; gap: 16px; font-size: 0.9rem; }
+.pedido__resumo-linha dt, .pedido__resumo-linha dd { margin: 0; }
+.pedido__resumo-linha--total {
+  border-top: 2px solid var(--preto); padding-top: 6px; margin-top: 2px;
+  font-size: 1.25rem; font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .entrega__campos, .entrega__campos--retirada { grid-template-columns: 1fr; }
+  .pedido__resumo { width: 100%; }
+}
+
+/* Comanda: invisível na tela, única coisa impressa. */
+.comanda { display: none; }
 @media print {
-  .cabecalho, .busca-produto, .pedido__acoes-base, .pedido__acoes-topo, .item-pedido__remover,
-  .quantidade__botao, .acrescimo__adicionar, .acrescimo__remover, .pedido__aviso, #botaoTrocarCliente { display: none !important; }
+  body > *:not(#comanda) { display: none !important; }
+  body { background: #FFF; }
+  .comanda { display: block; max-width: 80mm; margin: 0 auto; font-size: 12px; color: #000; line-height: 1.35; }
+  .comanda__titulo { text-align: center; font-size: 18px; margin: 0; }
+  .comanda__subtitulo { text-align: center; font-weight: 700; font-size: 15px; }
+  .comanda__meta { text-align: center; font-size: 11px; margin-bottom: 8px; }
+  .comanda__bloco { border-top: 1px dashed #000; padding: 5px 0; }
+  .comanda__itens { list-style: none; margin: 0; padding: 5px 0; border-top: 1px dashed #000; }
+  .comanda__item { margin-bottom: 5px; }
+  .comanda__detalhe { font-size: 11px; padding-left: 10px; }
+  .comanda__linha { display: flex; justify-content: space-between; gap: 8px; }
+  .comanda__totais { border-top: 1px dashed #000; padding: 5px 0; }
+  .comanda__linha--total { font-size: 15px; }
 }
